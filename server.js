@@ -1,102 +1,95 @@
+const express = require("express");
+const path = require("path");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const axios = require("axios");
 
-// server.js – Backend Easy Coti + FedEx API
-const express = require('express');
-const axios = require('axios');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-require('dotenv').config();
-
+dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(bodyParser.json());
-
-// Obtener token de acceso
-async function getFedExToken() {
-  const res = await axios.post(
-    'https://apis-sandbox.fedex.com/oauth/token',
-    new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: process.env.FEDEX_API_KEY,
-      client_secret: process.env.FEDEX_API_SECRET
-    }),
-    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-  );
-  return res.data.access_token;
-}
-
-// Endpoint cotización
-app.post('/api/cotizar', async (req, res) => {
-  const { origenPostalCode, destinoPostalCode, peso, dimensiones } = req.body;
-
-  try {
-    const token = await getFedExToken();
-    const response = await axios.post(
-      'https://apis-sandbox.fedex.com/rate/v1/rates/quotes',
-      {
-        accountNumber: { value: process.env.FEDEX_ACCOUNT_NUMBER },
-        requestedShipment: {
-          shipper: { address: { postalCode: origenPostalCode, countryCode: 'CN' } },
-          recipient: { address: { postalCode: destinoPostalCode, countryCode: 'AR' } },
-          pickupType: 'DROPOFF_AT_FEDEX_LOCATION',
-          rateRequestType: ['ACCOUNT'],
-          requestedPackageLineItems: [
-            {
-              weight: { units: 'KG', value: peso },
-              dimensions: {
-                length: dimensiones.largo,
-                width: dimensiones.ancho,
-                height: dimensiones.alto,
-                units: 'CM'
-              }
-            }
-          ]
-        }
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    const tarifas = response.data.output.rateReplyDetails.map(rate => ({
-      tipoEnvio: rate.serviceType,
-      costo: rate.ratedShipmentDetails[0].totalNetChargeWithDutiesAndTaxes.amount,
-      moneda: rate.ratedShipmentDetails[0].totalNetChargeWithDutiesAndTaxes.currency,
-      tiempoEntrega: rate.commit?.daysInTransit ? `${rate.commit.daysInTransit} días` : 'N/D'
-    }));
-
-    res.json({ tarifas });
-  } catch (error) {
-    console.error('Error cotizando:', error.response?.data || error.message);
-    res.status(500).json({ error: 'Error al obtener cotización', detalle: error.response?.data || error.message });
-  }
-});
-
-app.get('/', (req, res) => {
-  res.send('Easy Coti FedEx API backend funcionando ✅');
-});
-
-app.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
-
-const express = require("express");
-const path = require("path");
-const app = express();
-require("dotenv").config();
-
 app.use(express.json());
-app.use(express.static(__dirname)); // Servir archivos como index.html
+app.use(express.static(__dirname)); // Sirve index.html
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// Tu endpoint de cotización debería estar acá también...
+app.post("/api/cotizar", async (req, res) => {
+  const { origenPostalCode, destinoPostalCode, peso, dimensiones } = req.body;
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en puerto ${PORT}`);
+  if (!origenPostalCode || !destinoPostalCode || !peso || !dimensiones) {
+    return res.status(400).json({ error: "Faltan datos obligatorios." });
+  }
+
+  try {
+    const response = await axios.post(
+      "https://apis-sandbox.fedex.com/rate/v1/rates/quotes",
+      {
+        accountNumber: {
+          value: process.env.FEDEX_ACCOUNT_NUMBER,
+        },
+        requestedShipment: {
+          shipper: {
+            address: {
+              postalCode: origenPostalCode,
+              countryCode: "CN",
+            },
+          },
+          recipient: {
+            address: {
+              postalCode: destinoPostalCode,
+              countryCode: "AR",
+            },
+          },
+          pickupType: "DROPOFF_AT_FEDEX_LOCATION",
+          serviceType: "INTERNATIONAL_PRIORITY",
+          packagingType: "YOUR_PACKAGING",
+          totalPackageWeight: {
+            units: "KG",
+            value: peso,
+          },
+          requestedPackageLineItems: [
+            {
+              weight: {
+                units: "KG",
+                value: peso,
+              },
+              dimensions: {
+                length: dimensiones[0],
+                width: dimensiones[1],
+                height: dimensiones[2],
+                units: "CM",
+              },
+            },
+          ],
+        },
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "X-locale": "es_AR",
+          Authorization: `Bearer ${process.env.FEDEX_API_KEY}`,
+        },
+      }
+    );
+
+    const rate = response.data.output.rateReplyDetails[0];
+    const monto = rate.ratedShipmentDetails[0].totalNetChargeWithDutiesAndTaxes.amount;
+    const tiempoEntrega = rate.commit?.daysInTransit ? `${rate.commit.daysInTransit} días` : "N/D";
+
+    res.json({
+      costo: monto,
+      tiempo: tiempoEntrega,
+    });
+  } catch (error) {
+    console.error("Error al cotizar:", error?.response?.data || error.message);
+    res.status(500).json({ error: "No se pudo obtener la cotización." });
+  }
 });
+
+app.listen(PORT, () => {
+  console.log(`✅ Easy Coti backend activo en puerto ${PORT}`);
+});
+
