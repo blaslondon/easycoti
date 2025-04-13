@@ -81,3 +81,22 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
+
+const express = require("express");
+const path = require("path");
+const app = express();
+require("dotenv").config();
+
+app.use(express.json());
+app.use(express.static(__dirname)); // Servir archivos como index.html
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+// Tu endpoint de cotización debería estar acá también...
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en puerto ${PORT}`);
+});
