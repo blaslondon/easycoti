@@ -13,7 +13,7 @@ app.use(express.json());
 app.use(express.static(__dirname)); // Sirve index.html
 
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
+  res.sendFile(path.join(__dirname, "index (1).html"));
 });
 
 app.post("/api/cotizar", async (req, res) => {
