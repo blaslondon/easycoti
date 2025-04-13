@@ -1,0 +1,157 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Easy Coti - FedEx Real Time</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f5f5f5;
+      color: #333;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    .container {
+      background-color: white;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+    }
+    .logo {
+      max-width: 300px;
+      height: auto;
+      display: block;
+      margin: 60px auto 20px;
+    }
+    h1 {
+      color: #1f3b64;
+      margin-bottom: 30px;
+      font-size: 28px;
+    }
+    label {
+      display: block;
+      margin-top: 20px;
+      font-weight: 600;
+      text-align: left;
+    }
+    input, select {
+      margin-top: 6px;
+      width: 100%;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 15px;
+      background-color: #fafafa;
+    }
+    button {
+      margin-top: 30px;
+      background-color: #1f3b64;
+      color: white;
+      font-weight: bold;
+      padding: 14px;
+      width: 100%;
+      border: none;
+      font-size: 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #173050;
+    }
+    #resultado {
+      margin-top: 25px;
+      text-align: left;
+      background-color: #e9f1fc;
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid #c4d9f2;
+      font-size: 15px;
+      color: #0c2e57;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="https://cdn.glitch.global/4838a4d0-0945-4191-bc94-00900be3de6e/EASY%20IMPORT%20LOGO%20VERTICAL.png?v=1744511467307" class="logo" alt="Easy Import Logo" />
+    <h1>Easy Import Coti by Fedex</h1>
+
+    <label for="origen">Código postal origen (FedEx requiere CP):</label>
+    <input type="text" id="origen" placeholder="Ej: 518000 (Shenzhen)" />
+
+    <label for="destino">Código postal destino:</label>
+    <input type="text" id="destino" value="1001" />
+
+    <label for="pesoReal">Peso real (kg):</label>
+    <input type="number" id="pesoReal" placeholder="Ej: 5" />
+
+    <label for="dimensiones">Dimensiones (L x A x H en cm):</label>
+    <input type="text" id="dimensiones" placeholder="Ej: 40x30x20" />
+
+    <button onclick="cotizarFedEx()">Cotizar con FedEx</button>
+
+    <div id="resultado"></div>
+  </div>
+
+  <script>
+    async function cotizarFedEx() {
+      const origenPostalCode = document.getElementById("origen").value;
+      const destinoPostalCode = document.getElementById("destino").value;
+      const peso = parseFloat(document.getElementById("pesoReal").value);
+      const dimensiones = document.getElementById("dimensiones").value.split("x").map(Number);
+
+      if (!origenPostalCode || !destinoPostalCode || isNaN(peso) || dimensiones.length !== 3 || dimensiones.some(isNaN)) {
+        document.getElementById("resultado").innerHTML = "⚠️ Completá todos los campos correctamente.";
+        return;
+      }
+
+      const payload = {
+        origenPostalCode,
+        destinoPostalCode,
+        peso,
+        dimensiones: {
+          largo: dimensiones[0],
+          ancho: dimensiones[1],
+          alto: dimensiones[2]
+        }
+      };
+
+      try {
+        const res = await fetch("/api/cotizar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (data.error) {
+          document.getElementById("resultado").innerHTML = `❌ Error: ${data.error}`;
+        } else {
+          let html = `<strong>Tarifas disponibles:</strong><br>`;
+          data.tarifas.forEach(t => {
+            html += `
+              <div style="margin-top: 10px;">
+                <strong>Tipo:</strong> ${t.tipoEnvio}<br>
+                <strong>Costo:</strong> ${t.costo} ${t.moneda}<br>
+                <strong>Entrega estimada:</strong> ${t.tiempoEntrega}
+              </div>
+              <hr>
+            `;
+          });
+          document.getElementById("resultado").innerHTML = html;
+        }
+      } catch (error) {
+        document.getElementById("resultado").innerHTML = "❌ Error al contactar el servidor.";
+      }
+    }
+  </script>
+</body>
+</html>
